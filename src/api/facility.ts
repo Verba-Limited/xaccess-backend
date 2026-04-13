@@ -21,8 +21,11 @@ export type HardwareDeviceRow = {
   communityId: string
   name: string
   type: string
+  serialNumber: string | null
   lastSeenAt: string | null
   isActive: boolean
+  /** True when the device currently has an active WebSocket connection on port 7788 */
+  isConnected: boolean
   createdAt: string
 }
 
