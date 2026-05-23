@@ -2,8 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   fetchCommunityInvoices,
+  fetchCommunityResidents,
+  postCommunityCharges,
   type CommunityInvoiceApiRow,
 } from '@/api/facility'
+import type { PublicUser } from '@/api/types'
 import {
   Building2,
   Calendar,
@@ -24,6 +27,7 @@ import {
   getPaymentHistoryRows,
   PAYMENT_CONFIG_ROWS,
   type PaymentHistoryRow,
+  type PaymentHistoryRowStatus,
 } from '@/pages/facility/invoiceFacilityMock'
 
 const DEMO_PAID = 950
@@ -38,9 +42,9 @@ const DEMO_DONUT_DATA = [
 function mapInvoiceToPaymentRow(inv: CommunityInvoiceApiRow): PaymentHistoryRow {
   const n = inv.amountMinor / 100
   const amount = `₦${n.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-  let status: PaymentHistoryRow['status'] = 'Pending'
+  let status: PaymentHistoryRowStatus = 'Pending'
   if (inv.status === 'PAID') status = 'Successful'
-  else if (inv.status === 'OVERDUE') status = 'Failed'
+  else if (inv.status === 'OVERDUE') status = 'Overdue'
   const date = inv.paidAt ? inv.paidAt.slice(0, 10) : inv.dueDate
   return {
     id: inv.id,
@@ -96,13 +100,15 @@ function TopStatCard({
   )
 }
 
-function StatusPill({ status }: { status: PaymentHistoryRow['status'] }) {
+function StatusPill({ status }: { status: PaymentHistoryRowStatus }) {
   const styles =
     status === 'Successful'
       ? 'bg-emerald-50 text-emerald-800'
       : status === 'Pending'
         ? 'bg-gray-100 text-gray-700'
-        : 'bg-red-50 text-red-700'
+        : status === 'Overdue'
+          ? 'bg-amber-50 text-amber-900'
+          : 'bg-red-50 text-red-700'
   return (
     <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${styles}`}>
       {status}
@@ -116,6 +122,17 @@ export function FacilityInvoices() {
   >(undefined)
   const [useDemoHistory, setUseDemoHistory] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(true)
+
+  const [residents, setResidents] = useState<PublicUser[]>([])
+  const [residentsErr, setResidentsErr] = useState<string | null>(null)
+  const [assignTitle, setAssignTitle] = useState('')
+  const [assignAmountNgn, setAssignAmountNgn] = useState('')
+  const [assignDueDate, setAssignDueDate] = useState('')
+  const [selectedResidentIds, setSelectedResidentIds] = useState<Record<string, boolean>>(
+    {},
+  )
+  const [assignBusy, setAssignBusy] = useState(false)
+  const [assignMsg, setAssignMsg] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -136,6 +153,91 @@ export function FacilityInvoices() {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    void fetchCommunityResidents()
+      .then((list) => {
+        if (!cancelled) {
+          setResidents(list.filter((u) => u.role === 'RESIDENT' && u.isActive))
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setResidentsErr('Could not load residents for assignment.')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const toggleResident = (id: string) => {
+    setSelectedResidentIds((s) => ({ ...s, [id]: !s[id] }))
+  }
+
+  const toggleAllResidents = () => {
+    const active = residents
+    const allOn =
+      active.length > 0 && active.every((r) => selectedResidentIds[r.id])
+    if (allOn) {
+      setSelectedResidentIds({})
+    } else {
+      const next: Record<string, boolean> = {}
+      for (const r of active) next[r.id] = true
+      setSelectedResidentIds(next)
+    }
+  }
+
+  const submitAssignCharge = () => {
+    setAssignMsg(null)
+    const title = assignTitle.trim()
+    const ngn = parseFloat(assignAmountNgn)
+    if (!title) {
+      setAssignMsg('Enter a charge title.')
+      return
+    }
+    if (Number.isNaN(ngn) || ngn < 1) {
+      setAssignMsg('Enter a valid amount in ₦ (at least 1.00).')
+      return
+    }
+    if (!assignDueDate) {
+      setAssignMsg('Choose a due date.')
+      return
+    }
+    const ids = Object.entries(selectedResidentIds)
+      .filter(([, v]) => v)
+      .map(([k]) => k)
+    if (ids.length === 0) {
+      setAssignMsg('Select at least one resident.')
+      return
+    }
+    const amountMinor = Math.round(ngn * 100)
+    if (amountMinor < 100) {
+      setAssignMsg('Minimum amount is ₦1.00.')
+      return
+    }
+    setAssignBusy(true)
+    void postCommunityCharges({
+      title,
+      amountMinor,
+      currency: 'NGN',
+      dueDate: assignDueDate,
+      residentIds: ids,
+    })
+      .then(async (res) => {
+        setUseDemoHistory(false)
+        setAssignMsg(
+          `Created ${res.created} invoice(s). Residents will see them under My Invoice on the mobile app.`,
+        )
+        setAssignTitle('')
+        setAssignAmountNgn('')
+        setAssignDueDate('')
+        setSelectedResidentIds({})
+        const list = await fetchCommunityInvoices()
+        setInvoiceList(list)
+      })
+      .catch((e: Error) => setAssignMsg(e.message ?? 'Could not create charges'))
+      .finally(() => setAssignBusy(false))
+  }
 
   const rows = useMemo(() => {
     if (useDemoHistory) return getPaymentHistoryRows()
@@ -288,6 +390,104 @@ export function FacilityInvoices() {
             <span className="ml-2 text-emerald-700">Live invoices from the API.</span>
           )}
         </p>
+      </div>
+
+      <div className="rounded-xl border border-[#E8E8ED] bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+        <h2 className="text-sm font-semibold text-gray-900">Assign charge to residents</h2>
+        <p className="mt-1 text-xs text-gray-500">
+          Create the same bill (title, amount, due date) for one or more residents. Each receives
+          their own invoice; it appears as an outstanding payment on the mobile app until paid.
+        </p>
+        {residentsErr && (
+          <p className="mt-2 text-sm text-red-600" role="alert">
+            {residentsErr}
+          </p>
+        )}
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <label className="block text-xs font-medium text-gray-600">
+            Charge title
+            <input
+              type="text"
+              className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              value={assignTitle}
+              onChange={(e) => setAssignTitle(e.target.value)}
+              placeholder="e.g. Estate maintenance Q2"
+              maxLength={200}
+            />
+          </label>
+          <label className="block text-xs font-medium text-gray-600">
+            Amount (₦)
+            <input
+              type="number"
+              min={1}
+              step="0.01"
+              className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              value={assignAmountNgn}
+              onChange={(e) => setAssignAmountNgn(e.target.value)}
+              placeholder="0.00"
+            />
+          </label>
+          <label className="block text-xs font-medium text-gray-600">
+            Due date
+            <input
+              type="date"
+              className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              value={assignDueDate}
+              onChange={(e) => setAssignDueDate(e.target.value)}
+            />
+          </label>
+        </div>
+        <div className="mt-4">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-medium text-gray-600">Residents</span>
+            <button
+              type="button"
+              className="text-xs font-semibold text-brand hover:underline"
+              onClick={() => toggleAllResidents()}
+            >
+              {residents.length > 0 &&
+              residents.every((r) => selectedResidentIds[r.id])
+                ? 'Clear all'
+                : 'Select all'}
+            </button>
+          </div>
+          <div className="max-h-48 space-y-2 overflow-y-auto rounded-lg border border-gray-100 bg-gray-50/80 p-3">
+            {residents.length === 0 ? (
+              <p className="text-sm text-gray-500">No active residents in this facility.</p>
+            ) : (
+              residents.map((r) => (
+                <label
+                  key={r.id}
+                  className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-white"
+                >
+                  <input
+                    type="checkbox"
+                    checked={!!selectedResidentIds[r.id]}
+                    onChange={() => toggleResident(r.id)}
+                  />
+                  <span className="font-medium text-gray-900">{r.fullName}</span>
+                  <span className="text-gray-500">{r.unitLabel ?? '—'}</span>
+                </label>
+              ))
+            )}
+          </div>
+        </div>
+        <button
+          type="button"
+          disabled={assignBusy}
+          onClick={() => void submitAssignCharge()}
+          className="mt-4 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white hover:opacity-95 disabled:opacity-50"
+        >
+          {assignBusy ? 'Creating…' : 'Create invoices for selected residents'}
+        </button>
+        {assignMsg && (
+          <p
+            className={`mt-3 text-sm ${assignMsg.startsWith('Created') ? 'text-emerald-700' : 'text-red-600'}`}
+            role="status"
+          >
+            {assignMsg}
+          </p>
+        )}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">

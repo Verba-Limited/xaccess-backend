@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   Cpu,
   DollarSign,
+  Droplets,
   LayoutDashboard,
   Link2,
   LogOut,
@@ -21,6 +22,7 @@ const nav = [
   { to: '/facility/security', label: 'Security Management', icon: Shield, end: false },
   { to: '/facility/access', label: 'Access Control', icon: Link2, end: false },
   { to: '/facility/devices', label: 'Device Management', icon: Cpu, end: false },
+  { to: '/facility/utilities', label: 'Utility Management', icon: Droplets, end: false },
   { to: '/facility/messages', label: 'Messaging', icon: MessageSquare, end: false },
   { to: '/facility/invoices', label: 'Invoice Management', icon: DollarSign, end: false },
 ]

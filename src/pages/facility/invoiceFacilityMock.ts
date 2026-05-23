@@ -1,10 +1,16 @@
+export type PaymentHistoryRowStatus =
+  | 'Successful'
+  | 'Pending'
+  | 'Failed'
+  | 'Overdue'
+
 export type PaymentHistoryRow = {
   id: string
   residentName: string
   apartment: string
   paymentDetails: string
   amount: string
-  status: 'Successful' | 'Pending' | 'Failed'
+  status: PaymentHistoryRowStatus
   date: string
 }
 
@@ -24,7 +30,12 @@ export type InvoicePlanRow = {
   active: boolean
 }
 
-const STATUSES: PaymentHistoryRow['status'][] = ['Successful', 'Pending', 'Failed']
+const STATUSES: PaymentHistoryRowStatus[] = [
+  'Successful',
+  'Pending',
+  'Failed',
+  'Overdue',
+]
 
 function buildPayments(): PaymentHistoryRow[] {
   const total = 40

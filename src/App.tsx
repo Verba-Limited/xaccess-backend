@@ -48,6 +48,7 @@ import { FacilityInvoices } from '@/pages/facility/FacilityInvoices'
 import { FacilitySettings } from '@/pages/facility/FacilitySettings'
 import { FacilityChangePassword } from '@/pages/facility/FacilityChangePassword'
 import { DeviceManagement } from '@/pages/facility/DeviceManagement'
+import { FacilityUtilities } from '@/pages/facility/FacilityUtilities'
 
 export default function App() {
   return (
@@ -123,6 +124,7 @@ export default function App() {
             <Route path="invoices/plans" element={<FacilityInvoicePlans />} />
             <Route path="invoices" element={<FacilityInvoices />} />
             <Route path="devices" element={<DeviceManagement />} />
+            <Route path="utilities" element={<FacilityUtilities />} />
             <Route path="settings" element={<FacilitySettings />} />
             <Route path="settings/password" element={<FacilityChangePassword />} />
           </Route>
