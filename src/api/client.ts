@@ -3,11 +3,13 @@ import type { ApiEnvelope } from './types'
 /**
  * API base (must include `/api/v1`).
  * - Dev: default `/api/v1` so the Vite dev server proxies `/api` → `http://localhost:3000` (see `vite.config.ts`).
- * - Prod build: set `VITE_API_URL` to your deployed API, or defaults to localhost:3000.
+ * - Prod build: set `VITE_API_URL` or defaults to Render deployment.
  */
+const PROD_API_BASE = 'https://xaccess-api.onrender.com/api/v1'
+
 export const API_BASE =
   import.meta.env.VITE_API_URL ??
-  (import.meta.env.DEV ? '/api/v1' : 'http://localhost:3000/api/v1')
+  (import.meta.env.DEV ? '/api/v1' : PROD_API_BASE)
 
 const TOKEN_KEY = 'xaccess_admin_token'
 

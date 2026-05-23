@@ -19,7 +19,7 @@ Sign in with a **super admin** account (see root `README.md`), e.g. `superadmin@
 ## API
 
 - **Dev (`npm run dev`):** default API base is **`/api/v1`** (relative), so the browser hits the Vite dev server and it **proxies** `/api` → `http://localhost:3000`. Keep the Nest API on port **3000**.
-- **Production build:** set `VITE_API_URL` (e.g. `https://your-api.example.com/api/v1`) or it falls back to `http://localhost:3000/api/v1`.
+- **Production build:** uses `https://xaccess-api.onrender.com/api/v1` (see `.env.production` and `src/api/client.ts`). Override with `VITE_API_URL` in Vercel if needed.
 
 If you see **`Cannot GET /api/v1/admin/...`**, the Nest process is missing that route: from `api/` run `npm run build && npm run start:dev` and confirm startup logs list `Mapped {/api/admin/community-admins, GET}`. See `../api/README.md` (Troubleshooting).
 
